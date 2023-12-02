@@ -84,8 +84,8 @@ def count_vertex_edge(project_dir):
 
 if __name__ == '__main__':
 	result_dir = "result/"
-	if os.path.exists(result_dir):
-		os.system("rm -rf " + result_dir)
+	# if os.path.exists(result_dir):
+	# 	os.system("rm -rf " + result_dir)
 	os.mkdir(result_dir)
 	
 	first_pass = True
