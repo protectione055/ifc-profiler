@@ -4,9 +4,6 @@ import ifcopenshell
 from ifc_profile_util import *
 
 
-# 匹配IFC实体的正则表达式
-pattern = '''#\d+=(IFC[A-Z]+)\(.*\);'''
-
 # 设置输入路径
 proj_dir = 'bim_models_dataset'
 # 打印目录下所有文件名，然后路径拼接，返回列表

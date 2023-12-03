@@ -5,6 +5,7 @@ import re
 from datetime import datetime
 import matplotlib.pyplot as plt
 from matplotlib.font_manager import FontProperties
+import numpy as np
 
 # 设置中文字体
 plt.rc("font", family="AR PL UKai CN")
@@ -43,6 +44,7 @@ def iterate_ifc_directory(input_path):
 
 # 判断一行文本是否为IFC实体
 def is_ifc_entity(line):
+    pattern = """#\d+=(IFC[A-Z]+)\(.*\);"""
     match = re.findall(pattern, line)
     if match:
         return True
@@ -137,10 +139,32 @@ def ifc_to_property_graph(file):
             entity_type[vertex] = "Others"
             entity_color[vertex] = color_map["Others"]
 
-    # 设置孤立点的颜色
-    for v in graph.vertices():
-        # print(v.out_degree())
-        if graph.vp.color[v] == "":
-            graph.vp.color[v] = "#FFFFFF"
+    # 过滤所有name属性为空的顶点，并返回新的图
+    graph = gt.GraphView(graph, vfilt=lambda v: graph.vp.name[v] != "")
     return graph
-    
+
+
+# 获取中心度最高的k个点
+def get_top_k_central_nodes(graph, k, metric):
+    # 计算中心度
+    centrality_map, _ = gt.betweenness(graph)
+
+    # 获取所有节点的中心度
+    centralities = [centrality_map[v] for v in graph.iter_vertices()]
+    print(centralities)
+
+    # 找到中心度最大的k个点
+    top_k_nodes = np.argsort(centralities)[-k:]
+
+    return top_k_nodes
+
+
+# 绘制直方图
+def draw_hist(hist, title, x_lable, y_label,result_path, fig_size = (10, 5)):
+    # 绘制度分布直方图
+    plt.figure(figsize=fig_size)
+    plt.title(title)
+    plt.xlabel(x_lable)
+    plt.ylabel(y_label)
+    plt.bar([x[0] for x in hist], [x[1] for x in hist])
+    plt.savefig(result_path)
