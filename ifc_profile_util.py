@@ -2,8 +2,33 @@ import graph_tool.all as gt
 import ifcopenshell
 import os
 import re
-import random
+from datetime import datetime
 import matplotlib.pyplot as plt
+from matplotlib.font_manager import FontProperties
+
+# 设置中文字体
+plt.rc("font", family="AR PL UKai CN")
+# 用来正常显示负号
+plt.rcParams["axes.unicode_minus"] = False
+
+
+def create_result_dir(base_dir, exp_name):
+    """
+    在指定目录生成新的文件夹，文件夹按照“实验名+时间戳”命名
+
+    Args:
+        base_dir (str): 基础目录路径
+        exp_name (str): 实验名称
+
+    Returns:
+        str: 生成的结果文件夹路径
+    """
+    result_dir = os.path.join(
+        base_dir, exp_name + "-" + datetime.now().strftime("%Y%m%d-%H%M%S")
+    )
+    if not os.path.exists(result_dir):
+        os.makedirs(result_dir)
+    return result_dir
 
 
 # 定义一个迭代器，递归地返回目录下所有IFC文件的路径
@@ -30,14 +55,15 @@ three_color = ["#ffae49", "#44b7c2", "#024b7a"]
 
 
 # 输入color_dict生成legend
-def draw_legend(color_dict):
+def draw_legend(color_dict, result_path):
+    # 绘制图例
     plt.figure(figsize=(5, 5))
     plt.title("图例")
     for entity_type, color in color_dict.items():
-        plt.plot([], [], color=color, label=entity_type)
+        plt.plot([], [], color=color, label=entity_type, marker="o", markersize=10)
     plt.legend()
     plt.axis("off")
-    plt.show()
+    plt.savefig(result_path)
 
 
 # 不同类型的实体对应的颜色
@@ -50,14 +76,23 @@ color_map = {
 
 def ifc_to_property_graph(file):
     """
-    Converts an IFC file to a property graph.
+    将IFC转换为属性图，每个实例对应一个顶点，每个关联关系对应一条边。
+
+    每个顶点具有以下属性：
+
+    name: 实例的名称，格式为#id=type
+
+    color: 实例的颜色
+
+    type: 实例的类型
 
     Args:
-        file (str): The path to the IFC file.
+        file (str): IFC文件路径
 
     Returns:
-        graph (Graph): The property graph representing the IFC file.
+        graph (Graph): 属性图表示的IFC模型，注意图中可能有空的顶点，因为IFC实例序号不一定是连续的。
     """
+
     ifc_file = ifcopenshell.open(file)
     graph = gt.Graph(directed=False)
     entity_name = graph.new_vp("string")
@@ -71,42 +106,41 @@ def ifc_to_property_graph(file):
     entity_lists = [entity for entity in ifc_file]
     entity_lists.sort(key=lambda x: x.id())
     graph.add_vertex(entity_lists[-1].id() + 1)
-    print(graph.num_vertices())
 
     for entity in entity_lists:
         attributes = entity.get_info()
         vertex = graph.vertex(entity.id())
         entity_name[vertex] = "#" + str(entity.id()) + "=" + entity.is_a()
-        # 设置实体颜色
+
+        # 添加关联关系
+        for key, value in attributes.items():
+            if isinstance(value, ifcopenshell.entity_instance):
+                # print("add edge to " + str(entity.id()) + " from " + str(value.id()))
+                edge = graph.add_edge(vertex, graph.vertex(value.id()))
+                # 设置边宽度
+                edge_width[edge] = 1
+            elif isinstance(value, tuple):
+                for item in value:
+                    if isinstance(item, ifcopenshell.entity_instance):
+                        # print("add edge to " + str(entity.id()) + " from " + str(item.id()))
+                        edge = graph.add_edge(vertex, graph.vertex(item.id()))
+                        edge_width[edge] = 1
+
+        # 设置顶点属性
         if entity.is_a("IfcRelationship"):
             entity_type[vertex] = "IfcRelationship"
             entity_color[vertex] = color_map["IfcRelationship"]
-            # 添加关联关系
-            for key, value in attributes.items():
-                if isinstance(value, ifcopenshell.entity_instance):
-                    # print("add edge to " + str(entity.id()) + " from " + str(value.id()))
-                    edge = graph.add_edge(vertex, graph.vertex(value.id()))
-                    # 设置边宽度
-                    edge_width[edge] = 1
-                elif isinstance(value, tuple):
-                    for item in value:
-                        if isinstance(item, ifcopenshell.entity_instance):
-                            # print("add edge to " + str(entity.id()) + " from " + str(item.id()))
-                            edge = graph.add_edge(vertex, graph.vertex(item.id()))
-                            edge_width[edge] = 1
         elif entity.is_a("IfcProduct"):
             entity_type[vertex] = "IfcProduct"
             entity_color[vertex] = color_map["IfcProduct"]
         else:
             entity_type[vertex] = "Others"
             entity_color[vertex] = color_map["Others"]
+
     # 设置孤立点的颜色
     for v in graph.vertices():
         # print(v.out_degree())
         if graph.vp.color[v] == "":
             graph.vp.color[v] = "#FFFFFF"
     return graph
-
-
-if __name__ == "__main__":
-    draw_legend(color_map)
+    
